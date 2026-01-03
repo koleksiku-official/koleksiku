@@ -129,7 +129,7 @@ https://vt.tiktok.com/xxx"></textarea>
   </div>
 
   <script>
-    // ✅ URL WebApp (Apps Script). Pastikan ini URL deploy TERBARU.
+    // ✅ PAKAI URL WEB APP TERBARU (setelah deploy ulang)
     const WEBAPP_URL = "https://script.google.com/macros/s/AKfycbwVed58VCwLccuYlLhHTvWoehPB2bVq4r352bbFFTWUzFdKAe2N2jV-vp6wAsuKUxFL/exec";
 
     function setTab(which){
@@ -159,30 +159,24 @@ https://vt.tiktok.com/xxx"></textarea>
         .filter(Boolean);
     }
 
-    function setBusy(btnId, busy){
+    function setBusy(btnId, busy, label){
       const btn = document.getElementById(btnId);
       if (!btn) return;
       btn.disabled = !!busy;
-      btn.textContent = busy ? "⏳ Memproses..." : (btnId === "btnShopee" ? "Kirim Shopee ke Sheet" : "Kirim TikTok ke Sheet");
+      if (busy) btn.textContent = "⏳ Memproses...";
+      else btn.textContent = label;
     }
 
-    async function postToWebApp(payload){
-      // ✅ Tanpa no-cors supaya kita bisa baca response JSON
-      const res = await fetch(WEBAPP_URL, {
+    // ✅ OPSI A: no-cors (biar gak "Failed to fetch" dari GitHub Pages)
+    async function postToWebAppNoCors(payload){
+      // Penting: no-cors => response tidak bisa dibaca (opaque)
+      // Tapi request tetap terkirim ke Apps Script dan sheet akan terisi.
+      await fetch(WEBAPP_URL, {
         method: "POST",
+        mode: "no-cors",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload)
       });
-
-      // Apps Script kadang balikin 200 tapi text bukan JSON kalau error.
-      const text = await res.text();
-      let data;
-      try {
-        data = JSON.parse(text);
-      } catch (e) {
-        throw new Error("Response bukan JSON. Isi response:\n" + text.slice(0, 400));
-      }
-      return data;
     }
 
     async function kirimShopee(){
@@ -193,37 +187,26 @@ https://vt.tiktok.com/xxx"></textarea>
         return;
       }
 
-      setBusy("btnShopee", true);
+      setBusy("btnShopee", true, "Kirim Shopee ke Sheet");
       log("Total link Shopee: " + list.length);
-      log("Kirim ke WebApp...");
+      log("Kirim ke WebApp (mode no-cors) ...");
 
-      try {
-        // ✅ payload aman sesuai backend baru
-        const data = await postToWebApp({ type: "shopee", links: list });
+      try{
+        // Backend kamu menerima links (dan juga support shopee_links kalau masih ada)
+        await postToWebAppNoCors({ type: "shopee", links: list });
 
-        if (!data.ok) {
-          throw new Error(data.error || "Unknown error dari WebApp");
-        }
+        log("✅ Request terkirim.");
+        log("⚠️ no-cors: response tidak bisa dibaca di browser (normal).");
+        log("👉 Sekarang cek Google Sheet: harus masuk + title + image harus kebaca (kayak row 1–29).");
 
-        log("✅ Sukses: " + data.count + " link masuk.");
-        if (Array.isArray(data.results)) {
-          data.results.forEach((r, idx) => {
-            const title = r.name || "Produk";
-            const imgOk = r.image && !String(r.image).includes("via.placeholder.com");
-            log(`${idx+1}. ${imgOk ? "🖼️" : "⚠️"} ${title} | ${r.finalUrl || r.inputUrl}`);
-          });
-        }
-
-        log("\n🎉 Selesai. Cek sheet 'data' (hasil harus kayak row 1–29).");
-
-        // ✅ opsional: clear textarea setelah sukses
+        // optional clear textarea
         document.getElementById("shopee-links").value = "";
 
-      } catch(e){
-        log("❌ ERROR Shopee: " + (e?.message || e));
-        alert("ERROR Shopee:\n" + (e?.message || e));
-      } finally {
-        setBusy("btnShopee", false);
+      }catch(e){
+        log("❌ ERROR: " + (e?.message || e));
+        alert("ERROR:\n" + (e?.message || e));
+      }finally{
+        setBusy("btnShopee", false, "Kirim Shopee ke Sheet");
       }
     }
 
@@ -235,36 +218,24 @@ https://vt.tiktok.com/xxx"></textarea>
         return;
       }
 
-      setBusy("btnTikTok", true);
+      setBusy("btnTikTok", true, "Kirim TikTok ke Sheet");
       log("Total link TikTok: " + list.length);
-      log("Kirim ke WebApp...");
+      log("Kirim ke WebApp (mode no-cors) ...");
 
-      try {
-        // TikTok: tetap lewat webapp biar bisa dikembangkan nanti
-        const data = await postToWebApp({ type: "tiktok", links: list });
+      try{
+        await postToWebAppNoCors({ type: "tiktok", links: list });
 
-        if (!data.ok) {
-          throw new Error(data.error || "Unknown error dari WebApp");
-        }
+        log("✅ Request terkirim.");
+        log("⚠️ no-cors: response tidak bisa dibaca di browser (normal).");
+        log("👉 Cek Google Sheet: baris TikTok harus masuk.");
 
-        log("✅ Sukses: " + data.count + " link masuk.");
-        if (Array.isArray(data.results)) {
-          data.results.forEach((r, idx) => {
-            const title = r.name || "Konten";
-            log(`${idx+1}. 🎵 ${title} | ${r.finalUrl || r.inputUrl}`);
-          });
-        }
-
-        log("\n🎉 Selesai. Cek sheet 'data' apakah baris TikTok sudah masuk.");
-
-        // opsional clear
         document.getElementById("tiktok-links").value = "";
 
-      } catch(e){
-        log("❌ ERROR TikTok: " + (e?.message || e));
-        alert("ERROR TikTok:\n" + (e?.message || e));
-      } finally {
-        setBusy("btnTikTok", false);
+      }catch(e){
+        log("❌ ERROR: " + (e?.message || e));
+        alert("ERROR:\n" + (e?.message || e));
+      }finally{
+        setBusy("btnTikTok", false, "Kirim TikTok ke Sheet");
       }
     }
   </script>
